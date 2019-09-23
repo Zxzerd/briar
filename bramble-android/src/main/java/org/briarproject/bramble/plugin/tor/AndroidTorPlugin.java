@@ -17,6 +17,8 @@ import org.briarproject.bramble.api.system.LocationUtils;
 import org.briarproject.bramble.api.system.ResourceProvider;
 import org.briarproject.bramble.util.RenewableWakeLock;
 
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
@@ -35,6 +37,7 @@ class AndroidTorPlugin extends TorPlugin {
 
 	private final Context appContext;
 	private final RenewableWakeLock wakeLock;
+	private final File torFile, obfs4File;
 
 	AndroidTorPlugin(Executor ioExecutor, ScheduledExecutorService scheduler,
 			Context appContext, NetworkManager networkManager,
@@ -47,7 +50,8 @@ class AndroidTorPlugin extends TorPlugin {
 			int maxIdleTime) {
 		super(ioExecutor, networkManager, locationUtils, torSocketFactory,
 				clock, resourceProvider, circumventionProvider, batteryManager,
-				backoff, torRendezvousCrypto, callback, architecture, maxLatency, maxIdleTime,
+				backoff, torRendezvousCrypto, callback, architecture,
+				maxLatency, maxIdleTime,
 				appContext.getDir("tor", MODE_PRIVATE));
 		this.appContext = appContext;
 		PowerManager pm = (PowerManager)
@@ -55,6 +59,10 @@ class AndroidTorPlugin extends TorPlugin {
 		if (pm == null) throw new AssertionError();
 		wakeLock = new RenewableWakeLock(pm, scheduler, PARTIAL_WAKE_LOCK,
 				getWakeLockTag(appContext), 1, MINUTES);
+		// TODO: This is the wrong directory on 64-bit devices
+		String nativeLibDir = appContext.getApplicationInfo().nativeLibraryDir;
+		torFile = new File(nativeLibDir, "libtor.so");
+		obfs4File = new File(nativeLibDir, "libobfs4proxy.so");
 	}
 
 	@Override
@@ -84,5 +92,33 @@ class AndroidTorPlugin extends TorPlugin {
 	public void stop() {
 		super.stop();
 		wakeLock.release();
+	}
+
+	@Override
+	protected File getTorExecutableFile() {
+		// TODO: Fall back to extracting lib from APK
+		return torFile;
+	}
+
+	@Override
+	protected File getObfs4ExecutableFile() {
+		// TODO: Fall back to extracting lib from APK
+		return obfs4File;
+	}
+
+	@Override
+	protected void installTorExecutable() throws IOException {
+		if (!torFile.exists()) {
+			// TODO: Fall back to extracting lib from APK
+			throw new FileNotFoundException(torFile.getAbsolutePath());
+		}
+	}
+
+	@Override
+	protected void installObfs4Executable() throws IOException {
+		if (!obfs4File.exists()) {
+			// TODO: Fall back to extracting lib from APK
+			throw new FileNotFoundException(obfs4File.getAbsolutePath());
+		}
 	}
 }
